@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Banco.Infraestrutura/Banco.Infraestrutura.csproj" />
+    <ProjectReference Include="../Banco.Aplicacao/Banco.Aplicacao.csproj" />
+  </ItemGroup>
+</Project>

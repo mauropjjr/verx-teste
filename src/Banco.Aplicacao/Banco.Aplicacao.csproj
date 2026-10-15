@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Casos de uso, portas e contratos de integração: depende só do Dominio (design D2). -->
+  <ItemGroup>
+    <ProjectReference Include="../Banco.Dominio/Banco.Dominio.csproj" />
+  </ItemGroup>
+</Project>

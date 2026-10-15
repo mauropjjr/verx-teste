@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Testes de sistema (design D15): caixa-preta, só HTTP + docker compose contra o ambiente em execução.
+    Ignorados por padrão; habilite com BANCO_TESTES_SISTEMA=1 (veja o README).
+  -->
+</Project>

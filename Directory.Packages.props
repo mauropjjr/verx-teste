@@ -1,0 +1,41 @@
+<Project>
+  <!-- Central Package Management: versões de todos os pacotes NuGet ficam aqui. -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+  <ItemGroup Label="Hospedagem">
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.12" />
+  </ItemGroup>
+  <ItemGroup Label="Host (Banco.Infraestrutura/Compartilhado)">
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.12" />
+    <PackageVersion Include="Serilog.AspNetCore" Version="10.0.0" />
+    <!-- Mensageria (design D5/D6): cliente oficial direto, API async da 7.x. -->
+    <PackageVersion Include="RabbitMQ.Client" Version="7.2.2" />
+  </ItemGroup>
+  <ItemGroup Label="Consolidado (Banco.Infraestrutura/Consolidado)">
+    <!-- Retry com backoff exponencial + jitter no consumidor (design D8). -->
+    <PackageVersion Include="Polly.Core" Version="8.8.0" />
+    <!-- Versão por conta para invalidar o cache (design D9). -->
+    <PackageVersion Include="StackExchange.Redis" Version="2.13.17" />
+  </ItemGroup>
+  <ItemGroup Label="Identidade (Banco.Infraestrutura/Identidade)">
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12" />
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+  </ItemGroup>
+  <ItemGroup Label="Lançamentos (Banco.Api.Lancamentos)">
+    <PackageVersion Include="FluentValidation" Version="12.0.0" />
+  </ItemGroup>
+  <ItemGroup Label="Testes">
+    <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <PackageVersion Include="coverlet.collector" Version="10.1.0" />
+    <PackageVersion Include="NetArchTest.Rules" Version="1.3.2" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.12" />
+    <PackageVersion Include="Testcontainers.PostgreSql" Version="4.16.0" />
+    <PackageVersion Include="Testcontainers.RabbitMq" Version="4.16.0" />
+    <PackageVersion Include="Testcontainers.Redis" Version="4.16.0" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,3 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Entidades e regras de negócio de todos os contextos, sem dependência de pacote algum (design D2). -->
+</Project>

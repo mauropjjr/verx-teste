@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Referencia um único host (Banco.Api.Consolidado): cada host tem seu Program top-level no namespace global.
+       O processador e o consumidor do Worker são testados direto pela Infraestrutura, num host genérico
+       montado no teste (sem o Program do Worker). -->
+  <ItemGroup>
+    <Compile Include="../Comum/SinkMemoria.cs" Link="Comum/SinkMemoria.cs" />
+    <Compile Include="../Comum/TokensTeste.cs" Link="Comum/TokensTeste.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="Testcontainers.RabbitMq" />
+    <PackageReference Include="Testcontainers.Redis" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Banco.Api.Consolidado/Banco.Api.Consolidado.csproj" />
+    <ProjectReference Include="../../src/Banco.Infraestrutura/Banco.Infraestrutura.csproj" />
+  </ItemGroup>
+</Project>

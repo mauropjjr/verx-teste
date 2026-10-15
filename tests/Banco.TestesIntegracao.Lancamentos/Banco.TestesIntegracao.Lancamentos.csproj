@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Referencia um único host: cada host tem seu Program top-level no namespace global. -->
+  <ItemGroup>
+    <Compile Include="../Comum/TokensTeste.cs" Link="Comum/TokensTeste.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="Testcontainers.RabbitMq" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Banco.Api.Lancamentos/Banco.Api.Lancamentos.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,20 @@
+# Contexto de build = raiz do repositório (Dockerfiles em src/*/Dockerfile).
+**/bin/
+**/obj/
+**/TestResults/
+**/node_modules/
+**/.next/
+**/chaves/
+.git/
+.vs/
+.vscode/
+.claude/
+.openspec/
+openspec/
+docs/
+planos/
+tests/
+web/
+.env
+.env.*
+!.env.example

@@ -1,0 +1,18 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Banco.Dominio/Banco.Dominio.csproj" />
+    <Project Path="src/Banco.Aplicacao/Banco.Aplicacao.csproj" />
+    <Project Path="src/Banco.Infraestrutura/Banco.Infraestrutura.csproj" />
+    <Project Path="src/Banco.Api.Identidade/Banco.Api.Identidade.csproj" />
+    <Project Path="src/Banco.Api.Lancamentos/Banco.Api.Lancamentos.csproj" />
+    <Project Path="src/Banco.Api.Consolidado/Banco.Api.Consolidado.csproj" />
+    <Project Path="src/Banco.Worker.Consolidado/Banco.Worker.Consolidado.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Banco.TestesUnitarios/Banco.TestesUnitarios.csproj" />
+    <Project Path="tests/Banco.TestesIntegracao.Identidade/Banco.TestesIntegracao.Identidade.csproj" />
+    <Project Path="tests/Banco.TestesIntegracao.Lancamentos/Banco.TestesIntegracao.Lancamentos.csproj" />
+    <Project Path="tests/Banco.TestesIntegracao.Consolidado/Banco.TestesIntegracao.Consolidado.csproj" />
+    <Project Path="tests/Banco.TestesSistema/Banco.TestesSistema.csproj" />
+  </Folder>
+</Solution>

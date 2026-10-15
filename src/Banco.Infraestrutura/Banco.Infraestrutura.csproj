@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Implementa as portas da Aplicacao e os padrões de host (Compartilhado/): health, correlação,
+       ProblemDetails, Serilog, JWT, rate limit, RabbitMQ (design D2/D6/D10/D11). -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <PackageReference Include="Serilog.AspNetCore" />
+    <PackageReference Include="RabbitMQ.Client" />
+    <PackageReference Include="Polly.Core" />
+    <PackageReference Include="StackExchange.Redis" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <!-- Fixa o EF Core no patch mais recente (o Npgsql pede >= 10.0.4); o Design abaixo não flui para os hosts. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    <!-- Ferramentas de migration (dotnet ef); não vai para o runtime. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Banco.Aplicacao/Banco.Aplicacao.csproj" />
+  </ItemGroup>
+</Project>

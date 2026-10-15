@@ -1,0 +1,28 @@
+Teste de carga do consolidado — cenário "consolidado"
+Configuração: 50 req/s por 2m (consultas esperadas: 6000); limite p95 300 ms
+Duração real: 120.3 s
+
+Consultas (consolidado-diario + saldo):
+  requisições: 6001 (49.88 req/s)
+  taxa de erro: 0.00% (0 com erro)
+  latência: média 13.6 ms · mediana 5.1 ms · p90 34.9 ms · p95 54.8 ms · p99 108.1 ms · máx 331.8 ms
+  iterações descartadas (dropped_iterations, todos os cenários): 0
+  perda total (erros + descartadas) / esperadas: 0.00%
+
+Latência por tipo de consulta (análise):
+  periodo-30d          mediana 3.3 ms · p95 55.4 ms · p99 96.6 ms
+  periodo-90d          mediana 3.9 ms · p95 48.8 ms · p99 94.9 ms
+  periodo-365d         mediana 7.2 ms · p95 56.6 ms · p99 157.3 ms
+  periodo-mes-passado  mediana 2.9 ms · p95 45.7 ms · p99 80.4 ms
+  saldo-atual          mediana 5.5 ms · p95 58.4 ms · p99 113.3 ms
+  saldo-em             mediana 6.0 ms · p95 61.5 ms · p99 110.4 ms
+
+Total de requisições HTTP (inclui login): 6002
+
+Thresholds:
+  OK    http_req_failed{scenario:consultas}: rate<0.05
+  OK    checks{scenario:consultas}: rate>0.95
+  OK    dropped_iterations: count<=300
+  OK    http_req_failed: rate<0.05
+  OK    http_req_duration{scenario:consultas}: p(95)<300
+  OK    http_req_duration: p(95)<300

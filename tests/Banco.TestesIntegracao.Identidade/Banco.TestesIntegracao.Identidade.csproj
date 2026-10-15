@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Referencia um único host: cada host tem seu Program top-level no namespace global. -->
+  <ItemGroup>
+    <Compile Include="../Comum/SinkMemoria.cs" Link="Comum/SinkMemoria.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Banco.Api.Identidade/Banco.Api.Identidade.csproj" />
+  </ItemGroup>
+</Project>

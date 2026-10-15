@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <Compile Include="../Comum/TokensTeste.cs" Link="Comum/TokensTeste.cs" />
+    <Compile Include="../Comum/SinkMemoria.cs" Link="Comum/SinkMemoria.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
+    <PackageReference Include="NetArchTest.Rules" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Banco.Dominio/Banco.Dominio.csproj" />
+    <ProjectReference Include="../../src/Banco.Aplicacao/Banco.Aplicacao.csproj" />
+    <ProjectReference Include="../../src/Banco.Infraestrutura/Banco.Infraestrutura.csproj" />
+  </ItemGroup>
+</Project>

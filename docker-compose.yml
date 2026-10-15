@@ -1,0 +1,261 @@
+# Ambiente local da plataforma (design D14). Credenciais têm defaults de desenvolvimento e podem ser
+# sobrescritas por variáveis de ambiente ou por um arquivo .env (veja .env.example).
+name: banco
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-banco}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-banco_dev}
+      POSTGRES_DB: postgres
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-dados:/var/lib/postgresql/data
+      - ./infra/postgres:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # Via TCP (o servidor temporário do init só escuta no socket): só fica healthy com o servidor
+      # definitivo no ar e o último database do script de init já criado.
+      test:
+        [
+          "CMD-SHELL",
+          'PGPASSWORD="$${POSTGRES_PASSWORD}" psql -h 127.0.0.1 -U "$${POSTGRES_USER}" -d consolidado -tAc ''SELECT 1''',
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-dados:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:4-management
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-banco}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-banco_dev}
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq-dados:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_port_connectivity"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+      start_period: 20s
+    restart: unless-stopped
+
+  identidade-api:
+    build:
+      context: .
+      dockerfile: src/Banco.Api.Identidade/Dockerfile
+    environment:
+      ConnectionStrings__Identidade: "Host=postgres;Port=5432;Database=identidade;Username=${POSTGRES_USER:-banco};Password=${POSTGRES_PASSWORD:-banco_dev}"
+      # Senhas dos usuários de demonstração (só ambiente local; documentadas no README).
+      Identidade__UsuariosDemo__SenhaConsulta: ${IDENTIDADE_SENHA_CONSULTA:-Consulta@123}
+      Identidade__UsuariosDemo__SenhaOperador: ${IDENTIDADE_SENHA_OPERADOR:-Operador@123}
+      Identidade__UsuariosDemo__SenhaAdmin: ${IDENTIDADE_SENHA_ADMIN:-Admin@123}
+    ports:
+      - "${IDENTIDADE_PORT:-5000}:8080"
+    volumes:
+      # Par de chaves RSA gerado na primeira subida e mantido entre reinícios (design D10).
+      - identidade-chaves:/app/chaves
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      # A imagem aspnet não tem curl/wget: o próprio binário faz o GET em /health/live e sai com 0/1.
+      test: ["CMD", "dotnet", "Banco.Api.Identidade.dll", "--verificar-saude"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  lancamentos-api:
+    build:
+      context: .
+      dockerfile: src/Banco.Api.Lancamentos/Dockerfile
+    environment:
+      ConnectionStrings__Lancamentos: "Host=postgres;Port=5432;Database=lancamentos;Username=${POSTGRES_USER:-banco};Password=${POSTGRES_PASSWORD:-banco_dev}"
+      # Chaves públicas do JWT obtidas (e renovadas) no discovery da Identidade (design D10).
+      Autenticacao__EnderecoMetadados: http://identidade-api:8080/.well-known/openid-configuration
+      # Publicador do outbox (design D5/D6). O broker não entra no /health/ready: com ele fora, os
+      # lançamentos continuam sendo aceitos e os eventos ficam pendentes até a reconexão.
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Porta: "5672"
+      RabbitMq__Usuario: ${RABBITMQ_USER:-banco}
+      RabbitMq__Senha: ${RABBITMQ_PASSWORD:-banco_dev}
+      # Seed de ~1 ano de lançamentos nas contas demo pelo caminho de domínio (design D13): gera os eventos do
+      # outbox e o worker popula o consolidado. Idempotente: uma marca na tabela semeaduras impede duplicar.
+      Semeadura__HistoricoHabilitado: ${SEMEADURA_HISTORICO_HABILITADO:-true}
+    ports:
+      - "${LANCAMENTOS_PORT:-5001}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      identidade-api:
+        condition: service_healthy
+    healthcheck:
+      # A imagem aspnet não tem curl/wget: o próprio binário faz o GET em /health/live e sai com 0/1.
+      test: ["CMD", "dotnet", "Banco.Api.Lancamentos.dll", "--verificar-saude"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  consolidado-api:
+    build:
+      context: .
+      dockerfile: src/Banco.Api.Consolidado/Dockerfile
+    environment:
+      ConnectionStrings__Consolidado: "Host=postgres;Port=5432;Database=consolidado;Username=${POSTGRES_USER:-banco};Password=${POSTGRES_PASSWORD:-banco_dev}"
+      # Cache-aside versionado (design D9). Redis fora: consultas seguem pelo Postgres e /health/ready responde 503.
+      ConnectionStrings__Redis: redis:6379
+      # Chaves públicas do JWT obtidas (e renovadas) no discovery da Identidade (design D10).
+      Autenticacao__EnderecoMetadados: http://identidade-api:8080/.well-known/openid-configuration
+      # Usado só pelo reprocessamento da DLQ (admin, design D8); o broker não entra no /health/ready.
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Porta: "5672"
+      RabbitMq__Usuario: ${RABBITMQ_USER:-banco}
+      RabbitMq__Senha: ${RABBITMQ_PASSWORD:-banco_dev}
+    ports:
+      - "${CONSOLIDADO_PORT:-5002}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      identidade-api:
+        condition: service_healthy
+    healthcheck:
+      # A imagem aspnet não tem curl/wget: o próprio binário faz o GET em /health/live e sai com 0/1.
+      test: ["CMD", "dotnet", "Banco.Api.Consolidado.dll", "--verificar-saude"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  consolidado-worker:
+    build:
+      context: .
+      dockerfile: src/Banco.Worker.Consolidado/Dockerfile
+    environment:
+      ConnectionStrings__Consolidado: "Host=postgres;Port=5432;Database=consolidado;Username=${POSTGRES_USER:-banco};Password=${POSTGRES_PASSWORD:-banco_dev}"
+      # Versão por conta para invalidar o cache do consolidado (design D9); Redis fora não bloqueia a projeção.
+      ConnectionStrings__Redis: redis:6379
+      # Consumidor da fila consolidado.lancamento-registrado (design D6/D8): manual ack, retry e DLQ.
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Porta: "5672"
+      RabbitMq__Usuario: ${RABBITMQ_USER:-banco}
+      RabbitMq__Senha: ${RABBITMQ_PASSWORD:-banco_dev}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # Sem porta HTTP: o binário confere a idade do batimento de saúde, renovado só enquanto o Postgres
+      # responde e o consumidor está com o canal do RabbitMQ aberto.
+      test:
+        ["CMD", "dotnet", "Banco.Worker.Consolidado.dll", "--verificar-saude"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./web
+    environment:
+      # Portal BFF (design D12): o servidor Next chama as APIs pela rede interna do compose.
+      IDENTIDADE_URL: http://identidade-api:8080
+      LANCAMENTOS_URL: http://lancamentos-api:8080
+      CONSOLIDADO_URL: http://consolidado-api:8080
+      # Ambiente local em http://localhost: cookie de sessão sem Secure. Atrás de HTTPS, use true.
+      COOKIE_SEGURO: ${COOKIE_SEGURO:-false}
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      identidade-api:
+        condition: service_healthy
+      lancamentos-api:
+        condition: service_healthy
+      consolidado-api:
+        condition: service_healthy
+    healthcheck:
+      # A tela de login é pública; a imagem node não precisa de curl/wget para o GET.
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/login').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  # Teste de carga do consolidado (design D9  "Desempenho do consolidado"): só sobe com o profile `carga`.
+  # docker compose --profile carga run --rm k6   ·   sumários em docs/teste-carga/ (veja o README).
+  k6:
+    image: grafana/k6:1.3.0
+    profiles: ["carga"]
+    command: ["run", "/scripts/consolidado.js"]
+    environment:
+      URL_IDENTIDADE: http://identidade-api:8080
+      URL_CONSOLIDADO: http://consolidado-api:8080
+      URL_LANCAMENTOS: http://lancamentos-api:8080
+      USUARIO: ${K6_USUARIO:-consulta}
+      SENHA: ${K6_SENHA:-${IDENTIDADE_SENHA_CONSULTA:-Consulta@123}}
+      USUARIO_OPERADOR: ${K6_USUARIO_OPERADOR:-operador}
+      SENHA_OPERADOR: ${K6_SENHA_OPERADOR:-${IDENTIDADE_SENHA_OPERADOR:-Operador@123}}
+      TAXA: ${K6_TAXA:-50}
+      DURACAO: ${K6_DURACAO:-2m}
+      LANCAMENTOS_PARALELOS: ${K6_LANCAMENTOS_PARALELOS:-0}
+      TAXA_LANCAMENTOS: ${K6_TAXA_LANCAMENTOS:-10}
+      LIMITE_P95_MS: ${K6_LIMITE_P95_MS:-300}
+      NOME_CENARIO: ${K6_NOME_CENARIO:-consolidado}
+      DIRETORIO_RESULTADOS: /resultados
+    volumes:
+      - ./tests/carga:/scripts:ro
+      - ./docs/teste-carga:/resultados
+    depends_on:
+      identidade-api:
+        condition: service_healthy
+      consolidado-api:
+        condition: service_healthy
+      lancamentos-api:
+        condition: service_healthy
+
+volumes:
+  postgres-dados:
+  redis-dados:
+  rabbitmq-dados:
+  identidade-chaves:

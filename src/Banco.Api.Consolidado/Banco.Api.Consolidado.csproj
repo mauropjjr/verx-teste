@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <ItemGroup>
+    <!-- Validação de formato da entrada no host (design D2/D11). -->
+    <PackageReference Include="FluentValidation" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Banco.Infraestrutura/Banco.Infraestrutura.csproj" />
+    <ProjectReference Include="../Banco.Aplicacao/Banco.Aplicacao.csproj" />
+  </ItemGroup>
+</Project>
