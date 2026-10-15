@@ -45,6 +45,7 @@ passo assíncrono **idempotente**.
 | [D16](#d16-documentação-de-arquitetura) | Documentação de arquitetura | — |
 | [Transversal](#consistência-eventual-como-contrato) | Consistência eventual como contrato | — |
 | [Transversal](#observabilidade) | Observabilidade | — |
+| [Transversal](#padrões-e-práticas-aplicados) | Padrões e práticas aplicados | — |
 
 ---
 
@@ -727,7 +728,56 @@ lançamento é seguível ponta a ponta pelos logs. `/health/live` e `/health/rea
 Details com o id de correlação.
 
 **Não implementado (non-goal desta entrega).** Métricas (fila, DLQ, idade do outbox pendente, latência) e tracing
-distribuído. Caminho em [evolução](evolucao.md#observabilidade-opentelemetry-e-jaeger): OpenTelemetry + Jaeger.
+distribuído. Caminho em [evolução](evolucao.md#9-observabilidade-opentelemetry-e-jaeger): OpenTelemetry + Jaeger.
+
+## Padrões e práticas aplicados
+
+Resumo dos padrões de projeto e das práticas de arquitetura usados na solução, com o lugar no código e o motivo.
+Também aparecem os que foram considerados e não usados, com a razão, porque escolher **não** aplicar um padrão
+também é decisão.
+
+### Padrões de projeto
+
+| Padrão | Onde está | Por quê |
+|---|---|---|
+| **Dependency Injection / Inversion of Control** | Composição de cada host em `Program.cs` e nas extensões `AdicionarInfraestrutura*` (`src/Banco.Infraestrutura/*/Extensoes*.cs`) | A Aplicação depende só de portas (interfaces); a Infraestrutura as implementa e o host decide qual implementação usar. É o que sustenta a regra de dependência da Clean Architecture ([D2](#d2-clean-architecture-organizada-por-camada-com-um-host-por-serviço)) |
+| **Unit of Work** | `IUnidadeDeTrabalhoLancamentos`, `IUnidadeDeTrabalhoIdentidade` e a do Consolidado, implementadas sobre o `DbContext` (ex.: `src/Banco.Infraestrutura/Lancamentos/Persistencia/UnidadeDeTrabalhoLancamentos.cs`) | Confirma lançamento + outbox (e inbox + resumo diário) numa única transação ([D2.1](#d21-repository--unit-of-work-só-no-lado-de-escrita)) |
+| **Repository** | `RepositorioContas`, `RepositorioLancamentos`, `RepositorioUsuarios` e os repositórios da projeção | Um por agregado, só no lado de escrita; o lado de leitura usa consultas SQL diretas ([D2.1](#d21-repository--unit-of-work-só-no-lado-de-escrita)) |
+| **Decorator / Proxy** | `ConsultasConsolidadoEmCache` envolve `ConsultasConsolidado` com a mesma porta `IConsultasConsolidado` (`src/Banco.Infraestrutura/Consolidado/Cache/`); no portal, `web/src/proxy.ts` intercepta as rotas e exige sessão | O cache entra sem que o caso de uso saiba que ele existe, e pode ser desligado trocando o registro de DI ([D9](#d9-cache-e-desempenho-do-consolidado)) |
+| **Facade** | `AdicionarPadroesBanco` / `UsarPadroesBanco` (`src/Banco.Infraestrutura/Compartilhado/ExtensoesPadroesBanco.cs`) | Uma chamada configura logs, correlação, Problem Details, autenticação, autorização, rate limit e health checks na ordem certa; os 3 hosts HTTP ficam iguais |
+| **Singleton** (via ciclo de vida do contêiner de DI) | `ConexaoRabbitMq`, `IConnectionMultiplexer` do Redis, `CircuitoCacheConsolidado`, `ProcessadorMensagemLancamento` (`src/Banco.Infraestrutura/Consolidado/ExtensoesInfraestruturaConsolidado.cs`) | Conexões caras e estado compartilhado (estado do circuito) precisam de uma instância por processo; o contêiner garante isso sem `static` |
+| **Iterator** | `PlanoHistorico` gera o histórico com `yield return` (`src/Banco.Infraestrutura/Lancamentos/Inicializacao/PlanoHistorico.cs`); o extrato é percorrido por cursor (`src/Banco.Aplicacao/Lancamentos/CursorExtrato.cs`) | O seed processa ~7.500 lançamentos em lotes sem montar a lista inteira na memória; o cliente percorre o extrato página a página sem *offset* |
+| **Factory** | `Fabrica*DbContextDesign` (`IDesignTimeDbContextFactory`) e as fábricas de teste `FabricaApi*` (`WebApplicationFactory`) | Criam o `DbContext` para as migrations e o host completo para os testes de integração |
+| **Mock object / test doubles** | `RelogioFixo` e `RelogioAjustavel` (relógio controlado), `InboxQueFalha` (falha N vezes para provar o retry), `SinkMemoria` (captura logs), `TokensTeste` (emite JWT de teste) | Testam regras dependentes de tempo, falhas transitórias e mascaramento de dados sensíveis de forma determinística |
+| **Result** | `ResultadoLancamento` (`src/Banco.Aplicacao/Lancamentos/ResultadoLancamento.cs`) | Conta inexistente, estorno repetido e conflito de idempotência são resultados esperados, não exceções; o host traduz cada um para 404/409/422 |
+| **Retry e Circuit Breaker** | Polly no consumidor (`ProcessadorMensagemLancamento`) e no cache (`CircuitoCacheConsolidado`) | Retry com backoff e jitter para falhas transitórias do banco ([D8](#d8-retry-dlq-e-reprocessamento)); circuito para não esperar timeout do Redis a cada requisição ([D9](#d9-cache-e-desempenho-do-consolidado)) |
+| **Transactional Outbox / Inbox** | `CaixaSaidaOutbox` + `PublicadorOutbox`; tabela `mensagens_processadas` no Consolidado | Publicação garantida e efeito único no consumidor ([D5](#d5-transactional-outbox), [D7](#d7-projeção-idempotente-e-independente-de-ordem)) |
+
+**Considerados e não usados:**
+
+| Padrão | Por que não |
+|---|---|
+| **Mediator** (MediatR) | Os casos de uso são chamados diretamente pelos endpoints. O mediator acrescentaria uma indireção sem ganho neste tamanho de solução, e o MediatR passou a ter licença comercial a partir da v13 ([D2](#d2-clean-architecture-organizada-por-camada-com-um-host-por-serviço)) |
+| **MVC / MVVM / MVP** | As APIs usam Minimal APIs: cada endpoint só traduz HTTP para um caso de uso, então controllers não acrescentam nada. O portal usa Server Components e Server Actions do Next.js, que separam dados e apresentação sem precisar de um desses padrões |
+| **Prototype** | Não é aplicado como padrão. Os *records* do domínio fazem cópia não destrutiva com `with` (ex.: `ResumoDiario`), que cumpre o mesmo papel sem uma interface de clonagem |
+| **Composite / Visitor** | Não há hierarquia de objetos a percorrer no domínio atual |
+
+### Estilos e práticas de arquitetura
+
+| Sigla | Aplicação na solução |
+|---|---|
+| **DDD** | Contextos delimitados (Identidade, Lançamentos, Consolidado) com isolamento verificado por teste de arquitetura; agregados `Conta` e `Lancamento` com regras no domínio; evento de domínio publicado como contrato de integração |
+| **EDA** | Lançamentos publica `LancamentoRegistradoV1`; o Consolidado reage de forma assíncrona e idempotente |
+| **BFF** | O portal Next.js chama as APIs pelo servidor e guarda o token só em cookie httpOnly ([D12](#d12-portal-nextjs-como-bff)) |
+| **CQRS** | Escrita (Lançamentos) e leitura (Consolidado) em processos e bancos separados |
+| **HTTP / JSON** | APIs REST versionadas (`/api/v1`) com erros em Problem Details |
+| **AMQP** | RabbitMQ com exchange *topic*, filas *quorum*, DLX/DLQ e *publisher confirms* ([D6](#d6-topologia-rabbitmq)) |
+| **IaC** | `docker-compose.yml` descreve todo o ambiente de forma declarativa; Terraform e Helm estão na [evolução](evolucao.md#10-infraestrutura-como-código-e-modelo-de-nuvem) |
+| **SOA** | Serviços com contratos explícitos e donos de seus dados; nenhum serviço acessa o banco de outro |
+| **BDD** | Os comportamentos foram especificados como cenários *Given/When/Then* e guiaram os testes de integração; a automação com Reqnroll está na [evolução](evolucao.md#4-bdd-executável) |
+| **gRPC** | Não usado: não há chamada síncrona interna entre serviços. Indicado quando houver ([evolução](evolucao.md#17-integração-com-os-sistemas-do-banco-eventos-e-grpc)) |
+| **MQTT** | Não se aplica: é um protocolo para dispositivos e IoT; entre serviços, AMQP oferece as garantias de entrega necessárias |
+| **SaaS / PaaS / IaaS** | Escolha do modelo de serviço por componente descrita na [evolução](evolucao.md#10-infraestrutura-como-código-e-modelo-de-nuvem) |
 
 ## Divergências entre design e implementação
 
